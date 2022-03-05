@@ -5,7 +5,7 @@ import numpy as np
 from cv2 import cv2 as cv
 
 
-def choose_point(img):
+def choose_point(img, save = False):
 
     def on_mouse(event, x, y, flags, param):
         if event == cv.EVENT_LBUTTONDOWN:
@@ -31,4 +31,6 @@ def choose_point(img):
     cv.destroyAllWindows()
     print('{} Points added'.format(len(points_add)))
 
+    if save:
+        return np.array(points_add), img_
     return np.array(points_add)

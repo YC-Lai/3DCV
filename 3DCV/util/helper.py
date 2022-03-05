@@ -50,14 +50,15 @@ def homography(pointSet1: np.array, pointSet2: np.array, k) -> np.array:
     T2, pointSet2 = normalization(pointSet2)
 
     A = []
+    randomPoints = np.random.randint(k, size=pointSet1.shape[0])
     if pointSet1.shape[1] == 2:
-        for i in range(0, k):
+        for i in randomPoints:
             x, y = pointSet1[i][0], pointSet1[i][1]
             u, v = pointSet2[i][0], pointSet2[i][1]
             A.append([0, 0, 0, -x, -y, -1, v*x, v*y, v])
             A.append([x, y, 1, 0, 0, 0, -u*x, -u*y, -u])
     else:
-        for i in range(0, k):
+        for i in randomPoints:
             x, y, z = pointSet1[i][0], pointSet1[i][1], pointSet1[i][2]
             u, v = pointSet2[i][0], pointSet2[i][1]
             A.append([0, 0, 0, 0, -x, -y, -z, -1, v*x, v*y, v*z, v])

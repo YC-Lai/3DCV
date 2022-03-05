@@ -12,11 +12,11 @@ from util.mics import choose_point
 if __name__ == '__main__':
     raw_img = cv.imread("images/1-3.jpg")
     img = cv.resize(raw_img, (500, int(raw_img.shape[0]*(500/raw_img.shape[1]))))
-    selectedPoints = choose_point(img)
+    selectedPoints, img_w_point = choose_point(img, save=True)
     warped_img = backward_warping(img, selectedPoints)
-    
+    result = np.concatenate((img_w_point, warped_img), axis=1)
     # plot
-    cv.imwrite('result/1-3.jpg', warped_img)
+    cv.imwrite('result/1-3.jpg', result)
     cv.namedWindow('book', cv.WINDOW_NORMAL)
     cv.imshow('book', warped_img)
     
