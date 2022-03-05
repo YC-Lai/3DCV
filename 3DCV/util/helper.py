@@ -2,6 +2,7 @@
 Utilities for 3D computer vision tasks.
 """
 import numpy as np
+from scipy.interpolate import griddata
 from cv2 import cv2 as cv
 
 
@@ -73,6 +74,25 @@ def homography(pointSet1: np.array, pointSet2: np.array, k) -> np.array:
     return np.linalg.inv(T2) @ H @ T1
 
 
+def DLT(H, points):
+    '''
+    Parameters:
+        H: homography matrix, shape = [3, 4] or [3, 3]
+        points: input points, shape = [3, N] or [2, N]
+
+    Return:
+        projection, shape = [N, 3] or [N, 2]
+    '''
+
+    assert (H.shape[1] == 4 and points.shape[0] == 3) or (H.shape[1] == 3 and points.shape[0] == 2)
+    projection = H @ np.concatenate([points, np.ones((1, points.shape[-1]))], axis=0)
+    scale = projection[-1, :]
+    projection /= scale[np.newaxis, :]
+    projection = np.delete(np.transpose(projection), -1, 1)
+
+    return projection
+
+
 def get_sift_correspondences(img1, img2):
     '''
     Parameters:
@@ -102,37 +122,75 @@ def get_sift_correspondences(img1, img2):
     return points1, points2
 
 
-def interpolation2D(img, x):
-    '''     | aw
-        d + + + + + + c
-          +     |   +  ah
-        --+-----x---+-------
-          +     |   +
-       ch +     |   +
-          + + + + + +
-        a   cw  |     b
-    '''
-    ceil, floor = np.ceil(x), np.floor(x)
-    rows = np.array([
-        [ceil[1], ceil[1]],
-        [floor[1], floor[1]]
-    ], dtype=int)
-    cols = np.array([
-        [floor[0], ceil[0]],
-        [floor[0], ceil[0]]
-    ], dtype=int)
+def backward_warping(img, selectedPoints):
 
-    aw = ceil[0] - x[0]
-    ah = ceil[1] - x[1]
-    cw = x[0] - floor[0]
-    ch = x[1] - floor[1]
-
-    weight = np.array([
-        [aw*ch, cw*ch],
-        [aw*ah, cw*ah]
+    # initialize warped image
+    (x, y) = img.shape[:2]
+    warpedPoints = np.array([
+        [0, 0],
+        [x-1, 0],
+        [x-1, y-1],
+        [0, y-1]
     ])
-    weight = np.reshape(weight, (2, 2, 1))
-    img = img[rows, cols]
-    P = np.sum(np.multiply(weight, img), axis=(0, 1))
+    warped_img = np.full((x, y, 3), (0, 0, 255), dtype=np.uint8)
 
-    return np.round(P).astype(np.uint8)
+    # get backward homography matrix
+    H = homography(selectedPoints, warpedPoints, len(selectedPoints))
+    backward_H = np.linalg.inv(H)
+
+    # get image coords
+    grid = np.indices((warped_img.shape[0], warped_img.shape[1])).reshape(2, -1)
+
+    # back transform
+    backward_coords = DLT(backward_H, grid)
+
+    # # result
+    temp = bilinear_interpolate(img, backward_coords[:, 0], backward_coords[:, 1])
+    warped_img = temp.reshape((x, y, 3))
+
+    return warped_img
+
+
+def bilinear_interpolate(im, x, y):
+    '''     
+                | 
+        b + + + + + + d
+          +     |   +  
+        --+-----x---+--
+          +     |   +
+          +     |   +
+          + + + + + +
+        a       |     c
+
+    Parameters:
+        im: input image
+        x: 1D numpy array [N,]
+        y: 1D numpy array [N,]
+
+    Return:
+        interpolated image [N, 3]
+    '''
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    x0 = np.floor(x).astype(int)
+    x1 = x0 + 1
+    y0 = np.floor(y).astype(int)
+    y1 = y0 + 1
+
+    x0 = np.clip(x0, 0, im.shape[1]-1)
+    x1 = np.clip(x1, 0, im.shape[1]-1)
+    y0 = np.clip(y0, 0, im.shape[0]-1)
+    y1 = np.clip(y1, 0, im.shape[0]-1)
+
+    Ia = im[y0, x0]
+    Ib = im[y1, x0]
+    Ic = im[y0, x1]
+    Id = im[y1, x1]
+
+    wa = ((x1-x) * (y1-y))[:, np.newaxis]
+    wb = ((x1-x) * (y-y0))[:, np.newaxis]
+    wc = ((x-x0) * (y1-y))[:, np.newaxis]
+    wd = ((x-x0) * (y-y0))[:, np.newaxis]
+
+    return wa*Ia + wb*Ib + wc*Ic + wd*Id
