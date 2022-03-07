@@ -10,7 +10,7 @@ from util.helper import (backward_warping)
 from util.mics import choose_point
 
 if __name__ == '__main__':
-    raw_img = cv.imread("images/1-3.jpg")
+    raw_img = cv.imread("data/task2/1-3.jpg")
     img = cv.resize(raw_img, (500, int(raw_img.shape[0]*(500/raw_img.shape[1]))))
     selectedPoints, img_w_point = choose_point(img, save=True)
     warped_img = backward_warping(img, selectedPoints)

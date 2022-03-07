@@ -9,9 +9,9 @@ import numpy as np
 from util.helper import (homography, DLT, get_sift_correspondences)
 
 if __name__ == '__main__':
-    img0 = cv.imread("images/1-0.png")
-    img1 = cv.imread("images/1-1.png")
-    img2 = cv.imread("images/1-2.png")
+    img0 = cv.imread("data/task1/1-0.png")
+    img1 = cv.imread("data/task1/1-1.png")
+    img2 = cv.imread("data/task1/1-2.png")
     gt1 = np.load("gt/task1/correspondence_01.npy")
     gt2 = np.load("gt/task1/correspondence_02.npy")
 
