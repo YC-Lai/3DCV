@@ -197,94 +197,98 @@ def bilinear_interpolate(im, x, y):
     return wa*Ia + wb*Ib + wc*Ic + wd*Id
 
 
-def p3p(points3D, points2D, cameraMatrix, size, distCoeffs=None):
-    '''
-    Parameters:
-        points3D [3, 4]: scene point in WCS (world coordinate system)
-        points2D [2, 4]: image point in PCS (pixel coordinate system)
-        cameraMatrix [3, 3]: intrinsic matrix
-        size [M, N]: image size
-        distCoeffs [4,]: distortion parameters
+class P3P():
+    def __init__(self, size, cameraMatrix, distCoeffs, PCS_to_CCS: function, trilateration: function) -> None:
+        self.size = size
+        self.cameraMatrix = cameraMatrix
+        self.distCoeffs = distCoeffs
 
-    Return:
-        R: rotation matrix
-        T: translation matrix
-    '''
+        self.PCS_to_CCS = PCS_to_CCS
+        self.trilateration = trilateration
 
-    assert points3D.shape[0] == 3 and points3D.shape[1] == 4
-    assert points2D.shape[0] == 2 and points2D.shape[1] == 4
-    assert cameraMatrix.shape[0] == 3 and cameraMatrix.shape[1] == 3
+    def __call__(self, points3D, points2D):
+        '''
+        Parameters:
+            points3D [3, 4]: scene point in WCS (world coordinate system)
+            points2D [2, 4]: image point in PCS (pixel coordinate system)
 
-    # Step 1: compute angles
-    x = PCS_to_CCS(points2D, cameraMatrix, distCoeffs, size)
-    ca = np.dot(x[:, 1], x[:, 2])
-    cb = np.dot(x[:, 0], x[:, 2])
-    cc = np.dot(x[:, 0], x[:, 1])
+        Return:
+            R: rotation matrix
+            T: translation matrix
+        '''
+        assert points3D.shape[0] == 3 and points3D.shape[1] == 4
+        assert points2D.shape[0] == 2 and points2D.shape[1] == 4
 
-    # Step 2: compute distances
-    a = distance(points3D[:, 1], points3D[:, 2])
-    b = distance(points3D[:, 0], points3D[:, 2])
-    c = distance(points3D[:, 0], points3D[:, 1])
+        # Step 1: compute angles
+        x = self.PCS_to_CCS(points2D, self.cameraMatrix, self.distCoeffs, self.size)
+        ca = np.dot(x[:, 1], x[:, 2])
+        cb = np.dot(x[:, 0], x[:, 2])
+        cc = np.dot(x[:, 0], x[:, 1])
 
-    A4 = ((a**2-c**2)/(b**2) - 1)**2 - ((2*c/b)**2) * ca**2
-    A3 = 4 * (((a**2-c**2)/(b**2)) * (1 - (a**2-c**2)/(b**2)) * cb -
-              (1 - (a**2+c**2)/(b**2)) * ca * cc + (2*(c**2/b**2) * ca**2 * cb))
-    A2 = 2 * ((((a**2-c**2)/(b**2))**2 - 1) + (2*((a**2-c**2)/(b**2))**2 * cb**2) +
-              (2*((b**2-c**2)/(b**2))*ca**2) - (4*((a**2+c**2)/(b**2))*ca*cb*cc) + (2*((b**2-a**2)/(b**2))*cc**2))
-    A1 = 4 * (-((a**2-c**2)/(b**2))*(1 + (a**2-c**2)/(b**2))*cb + 2 *
-              (a**2/b**2)*cc**2*cb - (1 + (a**2+c**2)/(b**2))*ca*cc)
-    A0 = (1 + (a**2-c**2)/(b**2))**2 - (2*a/b)**2*cc**2
+        # Step 2: compute distances
+        a = distance(points3D[:, 1], points3D[:, 2])
+        b = distance(points3D[:, 0], points3D[:, 2])
+        c = distance(points3D[:, 0], points3D[:, 1])
 
-    roots = np.roots([A4, A3, A2, A1, A0])
+        A4 = ((a**2-c**2)/(b**2) - 1)**2 - ((2*c/b)**2) * ca**2
+        A3 = 4 * (((a**2-c**2)/(b**2)) * (1 - (a**2-c**2)/(b**2)) * cb -
+                  (1 - (a**2+c**2)/(b**2)) * ca * cc + (2*(c**2/b**2) * ca**2 * cb))
+        A2 = 2 * ((((a**2-c**2)/(b**2))**2 - 1) + (2*((a**2-c**2)/(b**2))**2 * cb**2) +
+                  (2*((b**2-c**2)/(b**2))*ca**2) - (4*((a**2+c**2)/(b**2))*ca*cb*cc) + (2*((b**2-a**2)/(b**2))*cc**2))
+        A1 = 4 * (-((a**2-c**2)/(b**2))*(1 + (a**2-c**2)/(b**2))*cb + 2 *
+                  (a**2/b**2)*cc**2*cb - (1 + (a**2+c**2)/(b**2))*ca*cc)
+        A0 = (1 + (a**2-c**2)/(b**2))**2 - (2*a/b)**2*cc**2
 
-    lengths = []
-    # for each solution of s
-    for v in roots:
-        if np.iscomplex(v):
-            continue
-        else:
-            v = np.real(v)
-            if v < 0:
+        roots = np.roots([A4, A3, A2, A1, A0])
+
+        lengths = []
+        # for each solution of s
+        for v in roots:
+            if np.iscomplex(v):
                 continue
+            else:
+                v = np.real(v)
+                if v < 0:
+                    continue
 
-        s1 = (b**2 / (1 + v**2 - 2 * v * cb))**0.5
-        s3 = v * s1
+            s1 = (b**2 / (1 + v**2 - 2 * v * cb))**0.5
+            s3 = v * s1
 
-        q = (-2*s3*ca)**2 - 4*(s3**2-a**2)
-        if q > 0:
-            s2_1 = (-(-2*s3*ca) + q**0.5) / 2
-            s2_2 = (-(-2*s3*ca) - q**0.5) / 2
-            for s2 in [s2_1, s2_2]:
-                if s2 > 0:
-                    lengths.append([s1, s2, s3])
-    lengths = np.array(lengths)
+            q = (-2*s3*ca)**2 - 4*(s3**2-a**2)
+            if q > 0:
+                s2_1 = (-(-2*s3*ca) + q**0.5) / 2
+                s2_2 = (-(-2*s3*ca) - q**0.5) / 2
+                for s2 in [s2_1, s2_2]:
+                    if s2 > 0:
+                        lengths.append([s1, s2, s3])
+        lengths = np.array(lengths)
 
-    # Step 3: identify correct solution through 4th point
-    x4 = x[:, -1]
-    x = x[:, 0:3]
-    X4 = points3D[:, -1]
-    X = points3D[:, 3]
-    solutions = []
-    for length in lengths:
-        length = np.array(length).reshape((1, 3))
-        T1, T2 = trilateration(X[:, 0], X[:, 1], X[:, 2], length[0], length[1], length[2])
-        # identify T
-        for T in [T1, T2]:
-            T = T.reshape((3, 1))
-            R = (length * x) @ np.linalg.pinv(X - T)
-            solutions.append([R, T, length])
+        # Step 3: identify correct solution through 4th point
+        x4 = x[:, -1]
+        x = x[:, 0:3]
+        X4 = points3D[:, -1]
+        X = points3D[:, 3]
+        solutions = []
+        for length in lengths:
+            length = np.array(length).reshape((1, 3))
+            T1, T2 = self.trilateration(X[:, 0], X[:, 1], X[:, 2], length[0], length[1], length[2])
+            # identify T
+            for T in [T1, T2]:
+                T = T.reshape((3, 1))
+                R = (length * x) @ np.linalg.pinv(X - T)
+                solutions.append([R, T, length])
 
-    best_R = solutions[0][0]
-    best_T = solutions[0][1]
-    error = np.Inf
-    for R, T, length in solutions:
-        proj_x = R @ (X4.reshape((3, 1)) - T)
-        if np.linalg.norm(proj_x - (length * x4)) < error:
-            best_R = R
-            best_T = T
+        best_R = solutions[0][0]
+        best_T = solutions[0][1]
+        error = np.Inf
+        for R, T, length in solutions:
+            proj_x = R @ (X4.reshape((3, 1)) - T)
+            if np.linalg.norm(proj_x - (length * x4)) < error:
+                best_R = R
+                best_T = T
 
-    # Step 4: compute coordinate transformation
-    return best_R, best_T
+        # Step 4: compute coordinate transformation
+        return best_R, best_T
 
 
 def PCS_to_CCS(points, cameraMatrix, distCoeffs, size):
@@ -374,3 +378,46 @@ def trilateration(P1, P2, P3, r1, r2, r3):
     return K1, K2
 
 
+def ransac(pnpSolver, points3D, points2D, s = 4, e = 0.5, p = 0.99, d = 10):
+    """
+    RANSAC algorithm
+
+    Parameters:
+        pnpSolver: any pnp algorithm to get R and T.
+        points3D [3, n]: scene point in WCS (world coordinate system)
+        points2D [2, n]: image point in PCS (pixel coordinate system)
+        s: number of sampled points
+        e: 
+        p: probability of the good sample
+        d: distance threshold ( np.sqrt(5.99 * (self.s**2)) )
+    """
+    
+    # Ransac parameter
+    N = np.log((1 - p)) / np.log(1 - np.power((1 - e), s))  # number of samples
+
+    best_R = None
+    best_T = None
+    min_n_outliers = np.Inf
+    for i in range(N):
+        # sample
+        idx = np.random.randint(points2D.shape[1], size=4)
+        samples3D = points3D[:, idx]
+        samples2D = points2D[:, idx]
+
+        try:
+            # compute
+            R, T = pnpSolver(samples3D, samples2D)
+
+            # score
+            projection = pnpSolver.cameraMatrix @ (R @ (points3D - T))
+            projection /= projection[-1, :].reshape((1, -1))
+            errors = np.linalg.norm(projection - points2D, axis=0)
+            n_outliers = errors[np.where(errors > d)]
+            if n_outliers < min_n_outliers:
+                best_R = R
+                best_T = T
+        except:
+            print("#{} point can not be solved".format(i))
+        
+    
+    return best_R, best_T
