@@ -378,7 +378,7 @@ def trilateration(P1, P2, P3, r1, r2, r3):
     return K1, K2
 
 
-def ransac(pnpSolver, points3D, points2D, s = 4, e = 0.5, p = 0.99, d = 10):
+def ransac(pnpSolver, points3D, points2D, s=4, e=0.5, p=0.99, d=10):
     """
     RANSAC algorithm
 
@@ -391,7 +391,7 @@ def ransac(pnpSolver, points3D, points2D, s = 4, e = 0.5, p = 0.99, d = 10):
         p: probability of the good sample
         d: distance threshold ( np.sqrt(5.99 * (self.s**2)) )
     """
-    
+
     # Ransac parameter
     N = np.log((1 - p)) / np.log(1 - np.power((1 - e), s))  # number of samples
 
@@ -418,6 +418,67 @@ def ransac(pnpSolver, points3D, points2D, s = 4, e = 0.5, p = 0.99, d = 10):
                 best_T = T
         except:
             print("#{} point can not be solved".format(i))
-        
-    
+
     return best_R, best_T
+
+
+class Matching():
+    def __init__(self, images_df, train_df, points3D_df, point_desc_df):
+        self.images_df = images_df
+        self.point_desc_df = point_desc_df
+
+        # Process model descriptors
+        desc_df = self.average_desc(train_df, points3D_df)
+        self.kp_model = np.array(desc_df["XYZ"].to_list())
+        self.desc_model = np.array(
+            desc_df["DESCRIPTORS"].to_list()).astype(np.float32)
+
+        # camera property
+        self.cameraMatrix = np.array(
+            [[1868.27, 0, 540], [0, 1869.18, 960], [0, 0, 1]])
+        self.distCoeffs = np.array(
+            [0.0847023, -0.192929, -0.000201144, -0.000725352])
+
+    def query(self, idx):
+        # Load query image
+        fname = ((self.images_df.loc[self.images_df["IMAGE_ID"] == idx])[
+                 "NAME"].values)[0]
+        rimg = cv.imread("data/frames/"+fname, cv.IMREAD_GRAYSCALE)
+
+        # Load query keypoints and descriptors
+        points = self.point_desc_df.loc[self.point_desc_df["IMAGE_ID"] == idx]
+        kp_query = np.array(points["XY"].to_list())
+        desc_query = np.array(
+            points["DESCRIPTORS"].to_list()).astype(np.float32)
+
+        return kp_query, desc_query
+
+    def average_desc(self, train_df, points3D_df):
+        train_df = train_df[["POINT_ID", "XYZ", "RGB", "DESCRIPTORS"]]
+        desc = train_df.groupby("POINT_ID")["DESCRIPTORS"].apply(np.vstack)
+        desc = desc.apply(lambda x: list(np.mean(x, axis=0)))
+        desc = desc.reset_index()
+        desc = desc.join(points3D_df.set_index("POINT_ID"), on="POINT_ID")
+        return desc
+
+    def find_match(self, idx):
+        kp_query, desc_query = self.query(idx)
+
+        bf = cv.BFMatcher()
+        matches = bf.knnMatch(desc_query, self.desc_model, k=2)
+
+        gmatches = []
+        for m, n in matches:
+            if m.distance < 0.75*n.distance:
+                gmatches.append(m)
+
+        points2D = np.empty((0, 2))
+        points3D = np.empty((0, 3))
+
+        for mat in gmatches:
+            query_idx = mat.queryIdx
+            model_idx = mat.trainIdx
+            points2D = np.vstack((points2D, kp_query[query_idx]))
+            points3D = np.vstack((points3D, self.kp_model[model_idx]))
+
+        return points3D, points2D
