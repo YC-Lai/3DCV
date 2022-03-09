@@ -35,7 +35,7 @@ document captured by the camera, please recover its original geometric property 
 
 **Result:**
 
-![result](./result/1-3.jpg)
+<img src="./result/1-3.jpg" height="300">
 
 ### Task 3: 2D-3D Matching
 
@@ -43,7 +43,8 @@ For each validation image, compute its camera pose with respect to world coordin
 Find the 2D-3D correspondence by descriptor matching, and solve the camera pose.
 
 **Result:**
-![result](./result/1-4.png)
+
+<img src="./result/1-4.png" height="400">
 
 ### Task 4: Augmented Reality
 
