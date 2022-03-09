@@ -52,3 +52,5 @@ For each camera pose you calculated, plot the trajectory and camera poses along 
 3d point cloud model. Provide some discussion on the visualized results.
 
 ### Task 5: Visual Odometry
+
+Implement a VO based on two-view epipolar geometry.
