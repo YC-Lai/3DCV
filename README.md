@@ -1,12 +1,12 @@
 # 3D Computer Vision
 
-Several 3D computer vision algorithm. Core modules are implemented without using OpenCV library.
+Several 3D computer vision algorithms. Core modules are implemented without using [OpenCV library](https://opencv.org/).
 This project is from [NTU 3D Computer Vision class assignment](https://sites.google.com/view/3dcv2021/home?authuser=0).
 
 ## Usage
 
 ```
-python3 3DCV/{task name}
+python3 3DCV/{task name}.py
 ```
 
 ## Task description
@@ -31,7 +31,7 @@ Given three color images 1-0 (1-0.png), 1-1 (1-1.png), and 1-2 (1-2.png), please
 ### Task 2: Document rectification
 
 Rectification is one of the most fundamental techniques when digitizing documents. Given an image of a
-document captured by the camera, please recover its original geometric property which is lost after perspective transformation. The following figures is an example of rectifying a photo of a book.
+document captured by the camera, please recover its original geometric property which is lost after perspective transformation. The following figure is an example of rectifying a photo of a book.
 
 **Result:**
 
