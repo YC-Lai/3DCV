@@ -42,6 +42,9 @@ document captured by the camera, please recover its original geometric property 
 For each validation image, compute its camera pose with respect to world coordinate.
 Find the 2D-3D correspondence by descriptor matching, and solve the camera pose.
 
+**Result:**
+![result](./result/1-4.png)
+
 ### Task 4: Augmented Reality
 
 For each camera pose you calculated, plot the trajectory and camera poses along with

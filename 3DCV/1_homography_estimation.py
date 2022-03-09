@@ -1,10 +1,4 @@
-import sys
-try:
-    sys.path.remove('/home/aicenteruav/catkin_ws/devel/lib/python2.7/dist-packages')
-except:
-    print("no ros")
-
-from cv2 import cv2 as cv
+import cv2 as cv
 import numpy as np
 from util.helper import (homography, DLT, get_sift_correspondences)
 
@@ -29,18 +23,4 @@ if __name__ == '__main__':
             loss = np.linalg.norm(projection - gtSet[i][1]) / len(projection)
             print("k = {}: loss = {}".format(k, loss))
 
-    font = cv.FONT_HERSHEY_SIMPLEX
-    fontScale = 2
-    loc = (10, 80)
-    fontColor = (255, 255, 255)
-    thickness = 3
-    lineType = 2
-    for i in range(3):
-        cv.putText(imgSet[i], 'image 1-{}'.format(i),
-                loc,
-                font,
-                fontScale,
-                fontColor,
-                thickness,
-                lineType)
-        cv.imwrite('result/1-{}.jpg'.format(i), imgSet[i])
+
