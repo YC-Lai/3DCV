@@ -383,7 +383,7 @@ def trilateration(P1, P2, P3, r1, r2, r3):
     return T1, T2
 
 
-def ransac(pnpSolver, point3D, point2D, s=4, e=0.5, p=0.99, d=10):
+def ransac(pnpSolver, point3D, point2D, s=3, e=0.5, p=0.99, d=10):
     """
     RANSAC algorithm
 
@@ -391,9 +391,9 @@ def ransac(pnpSolver, point3D, point2D, s=4, e=0.5, p=0.99, d=10):
         pnpSolver: any pnp algorithm to get R and T.
         point3D [3, n]: scene point in WCS (world coordinate system)
         point2D [2, n]: image point in PCS (pixel coordinate system)
-        s: number of sampled points
-        e: 
-        p: probability of the good sample
+        s: number of points in a sample
+        e: probabiliaty that a point is an outlier
+        p: desired probability that we get a good sample
         d: distance threshold ( np.sqrt(5.99 * (self.s**2)) )
     """    
     assert point3D.shape[0] == 3 and point2D.shape[0] == 2
