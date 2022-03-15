@@ -27,33 +27,13 @@ class Camera:
 
 class Pose:
     def __init__(self, R, T, scale) -> None:
-        self.__R = R
-        self.__T = T
-        self.__scale = scale
-
-    @property
-    def R(self):
-        return self.__R
-
-    @property
-    def T(self):
-        return self.__T
-
-    @T.setter
-    def T(self, value):
-        self.__T = value
-
-    @property
-    def scale(self):
-        return self.__scale
-
-    @scale.setter
-    def scale(self, value):
-        self.__scale = value
+        self.R = R
+        self.T = T
+        self.scale = scale
 
 
 class Frame(Pose):
-    def __init__(self, R, T, keypoints, descriptors, scale=1, matches=None, Previous=None):
+    def __init__(self, R, T, scale, keypoints, descriptors, pre_matches=None, post_matches=None):
         """
         Parameters:
             R: rotation matrix in WCS
@@ -62,24 +42,7 @@ class Frame(Pose):
         """
         super().__init__(R, T, scale)
 
-        self.__keypoints = keypoints
-        self.__descriptors = descriptors
-        self.__matches = matches
-        # store previous information
-        self.Previous: Frame = Previous
-
-    @property
-    def keypoints(self):
-        return self.__keypoints
-
-    @property
-    def descriptors(self):
-        return self.__descriptors
-
-    @property
-    def matches(self):
-        return self.__matches
-
-    @matches.setter
-    def matches(self, value):
-        self.__matches = value
+        self.keypoints = keypoints
+        self.descriptors = descriptors
+        self.pre_matches = pre_matches
+        self.post_matches = post_matches
