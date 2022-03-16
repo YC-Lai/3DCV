@@ -3,6 +3,10 @@
 Several 3D computer vision algorithms. Core modules are implemented without using [OpenCV library](https://opencv.org/).
 This project is from [NTU 3D Computer Vision class assignment](https://sites.google.com/view/3dcv2021/home?authuser=0).
 
+## Data
+
+Create data folder and download [data](https://drive.google.com/drive/folders/1TsjwiNrtZdhj-oCgBBCM353lo-KxV_6B?usp=sharing) after clone this repository.
+
 ## Usage
 
 ```
