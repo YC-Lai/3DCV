@@ -54,3 +54,4 @@ For each camera pose you calculated, plot the trajectory and camera poses along 
 ### Task 5: Visual Odometry
 
 Implement a VO based on two-view epipolar geometry.
+![result](/result/task5.gif)

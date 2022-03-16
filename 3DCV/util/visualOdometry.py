@@ -35,9 +35,9 @@ class visualOdometry:
 
         img1 = cv.imread(self.img_paths[1])
         img1_kp, img1_des = self.feature_extractor.detectAndCompute(img1, None)
-        R, T, matches, post_matches = self.__get_pose_btw_frames(img1_kp, img1_des, img0_kp, img0_des)
-        frame1 = Frame(R, T, 1, img1_kp, img1_des, pre_matches=matches)
-        frame0.post_matches = post_matches
+        R, T, key_inlier, des_inlier = self.__get_pose_btw_frames(img0_kp, img0_des, img1_kp, img1_des)
+        T = -1*T
+        frame1 = Frame(R, T, 1, img1_kp, img1_des, key_inlier, des_inlier)
 
         self.pre_frame = frame0
         self.cur_frame = frame1
@@ -58,6 +58,8 @@ class visualOdometry:
                 if R is not None:
                     # TODO:
                     # insert new camera pose here using vis.add_geometry()
+                    ctr = vis.get_view_control()
+                    ctr.change_field_of_view(step=-90.0)
                     line_set = self.get_lineSet(R, t)
                     vis.add_geometry(line_set)
             except:
@@ -75,24 +77,23 @@ class visualOdometry:
             post_kp, post_des = self.feature_extractor.detectAndCompute(post_img, None)
 
             # get the relative pose
-            relative_R, relative_T, matches, post_matches = self.__get_pose_btw_frames(
-                post_kp, post_des, self.cur_frame.keypoints, self.cur_frame.descriptors)
-            post_frame = Frame(relative_R, relative_T, 1, post_kp, post_des, pre_matches=matches)
-            self.cur_frame.post_matches = post_matches
+            relative_R, relative_T, key_inlier, des_inlier = self.__get_pose_btw_frames(
+                self.cur_frame.key, self.cur_frame.des, post_kp, post_des)
+            relative_T = -1*relative_T
+            post_frame = Frame(relative_R, relative_T, 1, post_kp, post_des, key_inlier, des_inlier)
 
             # triangulation
-            scale = self.__compute_relative_scale(100, self.pre_frame, self.cur_frame, post_frame)
+            scale = self.__compute_relative_scale(50, self.pre_frame, self.cur_frame, post_frame)
             if np.isnan(scale):
                 scale = 1
-            post_frame.scale = self.cur_frame.scale * scale
-            if post_frame.scale < 0.1 or post_frame.scale > 5:
-                post_frame.scale = 1
+            if scale > 2:
+                scale = 2
+            post_frame.scale = scale
             print("{}/{}: scale={}".format(i+3, len(self.img_paths), post_frame.scale))
 
             # R, T in WCS
-            R = relative_R @ self.pose_til_now.R
-            # T = self.pose_til_now.T + post_frame.scale * self.pose_til_now.R @ relative_T
-            T = relative_R @ self.pose_til_now.T - post_frame.scale * relative_T
+            R = self.pose_til_now.R @ relative_R
+            T = self.pose_til_now.T + post_frame.scale * self.pose_til_now.R @ relative_T
 
             # update
             self.pose_til_now.R = R
@@ -109,57 +110,37 @@ class visualOdometry:
             if cv.waitKey(30) == 27:
                 break
 
-    def __get_pose_btw_frames(self, post_kp, post_des, cur_kp, cur_des):
+    def __get_pose_btw_frames(self, cur_kp, cur_des, post_kp, post_des):
         # find descriptors.
-        matches = self.matcher.match(post_des, cur_des)
-        post_matches = self.matcher.match(cur_des, post_des)
+        matches = self.matcher.match(cur_des, post_des)
 
         cur_points = np.empty((0, 2))
-        last_points = np.empty((0, 2))
+        post_points = np.empty((0, 2))
+        post_des_temp = np.empty((0, post_des.shape[1]))
         for matche in matches:
             cur_idx = matche.queryIdx
-            last_idx = matche.trainIdx
-            cur_points = np.vstack((cur_points, post_kp[cur_idx].pt))
-            last_points = np.vstack((last_points, cur_kp[last_idx].pt))
+            post_idx = matche.trainIdx
+            cur_points = np.vstack((cur_points, cur_kp[cur_idx].pt))
+            post_points = np.vstack((post_points, post_kp[post_idx].pt))
+            post_des_temp = np.vstack((post_des_temp, post_des[post_idx]))
 
         # Normalize for Esential Matrix calaculation
         cur_points = cv.undistortPoints(cur_points, self.camera.intrinsic,
                                         self.camera.distCoeffs, None, self.camera.intrinsic)
-        last_points = cv.undistortPoints(last_points, self.camera.intrinsic,
+        post_points = cv.undistortPoints(post_points, self.camera.intrinsic,
                                          self.camera.distCoeffs, None, self.camera.intrinsic)
 
-        # find essential matrix and decompose into R, t
-        fx, fy, cx, cy = self.camera.parameter
-        E, _ = cv.findEssentialMat(cur_points, last_points, focal=fx, pp=(
-            cx, cy), method=cv.RANSAC, prob=0.999, threshold=1.0, mask=None)
-        _, R, T, _ = cv.recoverPose(E, cur_points, last_points, focal=fx,
-                                    pp=(cx, cy), mask=None)
+        # find essential matrix and decompose into R, t (post frame coordinate system to current)
+        # fx, fy, cx, cy = self.camera.parameter
+        E, _ = cv.findEssentialMat(cur_points, post_points, self.camera.intrinsic)
+        retval, R, T, inliner = cv.recoverPose(E, cur_points, post_points, self.camera.intrinsic)
 
-        return R, T, matches, post_matches
-
-    def __triple_matches(self, pre_frame: Frame, cur_frame: Frame, post_frame: Frame):
-        """
-        Parameters:
-            n_pairs: number of pairs
-            pre_frame: frame k-1
-            cur_frame: frame k
-            post_frame: frame k+1
-        """
-        pre_matches = cur_frame.pre_matches
-        post_matches = cur_frame.post_matches
-
-        pre_matches = sorted(pre_matches, key=lambda x: x.queryIdx)
-        post_matches = sorted(post_matches, key=lambda x: x.queryIdx)
-
-        cur_points = np.empty((0, 2))
-        pre_points = np.empty((0, 2))
-        post_points = np.empty((0, 2))
-        for pre_m, post_m in zip(pre_matches, post_matches):
-            cur_points = np.vstack((cur_points, cur_frame.keypoints[pre_m.queryIdx].pt))
-            pre_points = np.vstack((pre_points, pre_frame.keypoints[pre_m.trainIdx].pt))
-            post_points = np.vstack((post_points, post_frame.keypoints[post_m.trainIdx].pt))
-
-        return pre_points.T, cur_points.T, post_points.T
+        inliner_idx = np.squeeze(np.argwhere(np.squeeze(inliner)))
+        
+        key_inlier = post_points[inliner_idx, :]
+        des_inlier = post_des_temp[inliner_idx, :].astype("uint8")
+        
+        return R, T, key_inlier, des_inlier
 
     def __compute_relative_scale(self, n_pairs, pre_frame: Frame, cur_frame: Frame, post_frame: Frame):
         """
@@ -174,11 +155,28 @@ class visualOdometry:
                                                [0, 1, 0, 0],
                                                [0, 0, 1, 0]], dtype=np.float32)
         T2 = self.camera.intrinsic @ np.hstack((cur_frame.R, cur_frame.T))
-        T3 = self.camera.intrinsic @ np.hstack(((post_frame.R @ cur_frame.R), (cur_frame.T + cur_frame.R @ post_frame.T)))
+        T3 = self.camera.intrinsic @ np.hstack(((cur_frame.R @ post_frame.R),
+                                               (cur_frame.R @ post_frame.T + cur_frame.T)))
 
-        # shape: [2, N]
-        pre_points, cur_points, post_points = self.__triple_matches(pre_frame, cur_frame, post_frame)
+        # find match
+        matches_1 = self.matcher.match(cur_frame.des_inlier, pre_frame.des)
+        matches_2 = self.matcher.match(cur_frame.des_inlier, post_frame.des_inlier)
+        queryIdx_1 = [m.queryIdx for m in matches_1]
+        queryIdx_2 = [m.queryIdx for m in matches_2]
+        cur_idx, pre_ind, post_ind = np.intersect1d(queryIdx_1, queryIdx_2, return_indices=True)
+        cur_points = np.empty((0, 2))
+        pre_points = np.empty((0, 2))
+        post_points = np.empty((0, 2))
+        for i in range(len(cur_idx)):
+            cur_points = np.vstack((cur_points, cur_frame.key_inlier[cur_idx[i]]))
+            pre_points = np.vstack((pre_points, pre_frame.key[matches_1[pre_ind[i]].trainIdx].pt))
+            post_points = np.vstack((post_points, post_frame.key_inlier[matches_2[post_ind[i]].trainIdx]))
 
+        cur_points = cur_points.T
+        pre_points = pre_points.T
+        post_points = post_points.T
+
+        # Triangulation
         N = cur_points.shape[1]
         scales = []
         for _ in range(n_pairs):
@@ -188,24 +186,26 @@ class visualOdometry:
             post_p = post_points[:, idx]
 
             points4d_1 = cv.triangulatePoints(T1, T2, pre_p, cur_p)
-            points4d_2 = cv.triangulatePoints(T1, T3, pre_p, post_p)
+            points4d_2 = cv.triangulatePoints(T2, T3, cur_p, post_p)
 
             points3d_1 = (points4d_1[:3, :] / points4d_1[3, :].reshape(1, -1))
-            points3d_2 = (points4d_2[:3, :]/points4d_2[3, :].reshape(1, -1))
+            points3d_2 = (points4d_2[:3, :] / points4d_2[3, :].reshape(1, -1))
 
             distance_1 = np.linalg.norm(points3d_1[:, 0] - points3d_1[:, 1])
             distance_2 = np.linalg.norm(points3d_2[:, 0] - points3d_2[:, 1])
             scales.append((distance_2 / distance_1))
+        
         return statistics.median(scales)
 
     def get_lineSet(self, R, t):
         # get four corner points and camera center
         points = np.array(
-            [[0, 0, 1], [360, 0, 1], [360, 640, 1], [0, 640, 1], [320, 180, 0]])
+            [[0, 0, 1], [360, 0, 1], [360, 640, 1], [0, 640, 1]])
         points = np.linalg.pinv(self.camera.intrinsic) @ points.T
-        inv_R = np.linalg.pinv(R)
-        points = inv_R @ (points - t)
-        points = points.T
+        points /= points[-1, 0]
+        points3D = t + R @ (points)
+        points3D = points3D.T
+        points3D = np.concatenate((points3D, t.T), axis=0)
 
         # generate color
         color = [1, 0, 0]
@@ -213,7 +213,7 @@ class visualOdometry:
 
         # set up line
         line_set = o3d.geometry.LineSet(
-            points=o3d.utility.Vector3dVector(points),
+            points=o3d.utility.Vector3dVector(points3D),
             lines=o3d.utility.Vector2iVector(
                 [[0, 1], [1, 2], [2, 3], [0, 3], [0, 4], [1, 4], [2, 4], [3, 4]])
         )

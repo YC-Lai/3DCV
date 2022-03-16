@@ -33,16 +33,21 @@ class Pose:
 
 
 class Frame(Pose):
-    def __init__(self, R, T, scale, keypoints, descriptors, pre_matches=None, post_matches=None):
+    def __init__(self, R, T, scale, keypoints, descriptors, key_inlier=None, des_inlier=None):
         """
         Parameters:
             R: rotation matrix in WCS
             T: translation matrix in WCS
             scale: scale value
+            key: keypoints
+            des: descriptors
+            key_inlier: the inlier of previous frame to current
+            des_inlier: the inlier of previous frame to current
         """
         super().__init__(R, T, scale)
-
-        self.keypoints = keypoints
-        self.descriptors = descriptors
-        self.pre_matches = pre_matches
-        self.post_matches = post_matches
+        # for compute pose
+        self.key = keypoints
+        self.des = descriptors
+        # for triangulation
+        self.key_inlier = key_inlier
+        self.des_inlier = des_inlier
