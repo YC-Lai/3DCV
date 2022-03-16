@@ -54,6 +54,7 @@ Find the 2D-3D correspondence by descriptor matching, and solve the camera pose.
 
 For each camera pose you calculated, plot the trajectory and camera poses along with
 3d point cloud model. Provide some discussion on the visualized results.
+![result](/result/task4.gif)
 
 ### Task 5: Visual Odometry
 
